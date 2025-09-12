@@ -11,11 +11,10 @@ import {
     DialogTrigger
 } from "@/components/ui/dialog.tsx";
 import {Avatar, AvatarFallback, AvatarImage} from "@/components/ui/avatar.tsx";
-import {useToast} from "@/hooks/use-toast"
+import {useToast} from "@/hooks/use-toast";
 import {Toaster} from "@/components/ui/toaster.tsx";
 import {ScrollArea} from "@/components/ui/scroll-area.tsx";
 import {Badge} from "@/components/ui/badge.tsx";
-import {Select, SelectContent, SelectItem, SelectTrigger, SelectValue} from "@/components/ui/select.tsx";
 
 interface DanMuItem {
     name: string;
@@ -36,11 +35,6 @@ function App() {
 
     const realtimeListRef = useRef<HTMLDivElement>(null);
     const realtimeUserListRef = useRef<HTMLDivElement>(null);
-
-    const [isDrawing, setIsDrawing] = useState<boolean>(false);
-
-    const [luckyUserList, setLuckyUserList] = useState<Participant[]>([]);
-    const [drawCount, setDrawCount] = useState<number>(0);
 
     const startHandle = () => {
         if (!isLogin) {
@@ -78,61 +72,66 @@ function App() {
         avatar: '',
     });
 
+    // 修复：将事件处理函数提取为变量，确保removeListener能正确移除相同的函数引用
+    const handleUserInfo = (_event: any, data: any) => {
+        console.log("获取到用户信息", data);
+        // 这里能够获取到用户信息就说明 cookie 可以啦，可以开抓咯
+        if (data === null) {
+            return;
+        }
+        setUser({
+            name: data.uname,
+            avatar: data.face,
+        });
+        setIsLogin(true);
+    };
+
+    const handleDanmuMsg = (_event: any, data: any) => {
+        console.log("获取到弹幕信息", data);
+        setIsFetching(true);
+        setMsgList((prev) => {
+            return [...prev, {
+                name: data.name,
+                uid: data.uid,
+                content: data.content,
+            }]
+        })
+        // 滚动到底部
+        setTimeout(() => {
+            realtimeListRef.current?.scrollIntoView({
+                block: 'end',
+                behavior: 'smooth',
+            });
+        }, 500)
+    };
+
+    const handleAddUser = (_event: any, data: any) => {
+        console.log("获取到参与者信息", data);
+        setParticipants((prev) => {
+            return [...prev, {
+                name: data.name,
+                uid: data.uid,
+            }]
+        });
+        // 滚动到底部
+        setTimeout(() => {
+            realtimeUserListRef.current?.scrollIntoView({
+                block: 'end',
+                behavior: 'smooth',
+            });
+        }, 500)
+    };
 
     useEffect(() => {
-        window.ipcRenderer.on('user-info', (_event, data) => {
-            console.log("获取到用户信息", data);
-            // 这里能够获取到用户信息就说明 cookie 可以啦，可以开抓咯
-            if (data === null) {
-                return;
-            }
-            setUser({
-                name: data.uname,
-                avatar: data.face,
-            });
-            setIsLogin(true);
-        });
+        window.ipcRenderer.on('user-info', handleUserInfo);
+        window.ipcRenderer.on('danmu_msg', handleDanmuMsg);
+        window.ipcRenderer.on('add_user', handleAddUser);
 
-        window.ipcRenderer.on('danmu_msg', (_event, data) => {
-            console.log("获取到弹幕信息", data);
-            setIsFetching(true);
-            setMsgList((prev) => {
-                return [...prev, {
-                    name: data.name,
-                    uid: data.uid,
-                    content: data.content,
-                }]
-            })
-            // 滚动到底部
-            setTimeout(() => {
-                realtimeListRef.current?.scrollIntoView({
-                    block: 'end',
-                    behavior: 'smooth',
-                });
-            }, 500)
-        });
-
-        window.ipcRenderer.on('add_user', (_event, data) => {
-            console.log("获取到参与者信息", data);
-            setParticipants((prev) => {
-                return [...prev, {
-                    name: data.name,
-                    uid: data.uid,
-                }]
-            });
-            // 滚动到底部
-            setTimeout(() => {
-                realtimeUserListRef.current?.scrollIntoView({
-                    block: 'end',
-                    behavior: 'smooth',
-                });
-            }, 500)
-        });
+        // 修复：移除监听器时传入与注册时完全相同的函数引用
         return () => {
-            window.ipcRenderer.removeListener('user-info', () => {
-            });
-            window.ipcRenderer.removeListener('danmu_msg', () => {
-            });
+            window.ipcRenderer.removeListener('user-info', handleUserInfo);
+            window.ipcRenderer.removeListener('danmu_msg', handleDanmuMsg);
+            window.ipcRenderer.removeListener('add_user', handleAddUser);
         }
     }, []);
 
@@ -192,191 +191,99 @@ function App() {
                             </DialogContent>
                         </Dialog>
                     </div>
-                    {
-                        isLogin && <div className="user-info-container flex items-center">
+                    {isLogin && (
+                        <div className="user-info-container flex items-center">
                             <Avatar>
                                 <AvatarImage src={user.avatar} alt={user.name}/>
                                 <AvatarFallback>USER</AvatarFallback>
                             </Avatar>
-                            <span className="ml-4"> {user.name} </span>
+                            <span className="ml-2">{user.name}</span>
                         </div>
-                    }
-                    {
-                        !isLogin &&
+                    )}
+                    {!isLogin && (
                         <div className="user-info-container flex items-center">
-                            <span className={
-                                'text-sm text-gray-700'
-                            }> 登录后才能获取详细的弹幕信息哦 </span>
-                            <Button variant={'ghost'} onClick={() => openPageHandle()}> 前往登录 </Button>
+                            <span className="text-sm text-gray-700">登录后才能获取详细的弹幕信息哦</span>
+                            <Button variant={'ghost'} onClick={openPageHandle} className="ml-2">前往登录</Button>
                         </div>
-                    }
+                    )}
                 </div>
-                {/*<Input value={roomId} onChange={(e) => setRoomId(e.target.value)}/>*/}
-                <div className="main-container flex">
-                    {
-                        !isDrawing &&
-                        <div className="real-time-list flex-1">
-                            <div className="mb-4"> 实时弹幕列表</div>
-                            <ScrollArea className={"h-[60vh] rounded border p-4"}>
-                                <div ref={realtimeListRef}>
-                                    {
-                                        msgList.map((item, index) => {
-                                            return (
-                                                <div key={index} className="msg-item text-sm text-start p-1">
-                                                    <span className="name font-bold"> {item.name} </span>
-                                                    <Badge variant={'secondary'}
-                                                           className={"text-[0.75em] p-1 h-3"}> {item.uid} </Badge>
-                                                    :&nbsp;
-                                                    <span className="content"> {item.content} </span>
-                                                </div>
-                                            )
-                                        })
-                                    }
-                                </div>
-                            </ScrollArea>
+                <div className="flex gap-4 mt-4">
+                    <div className="flex-1">
+                        <div className="mb-4">
+                            <Input
+                                placeholder="请输入互动关键词"
+                                className="w-full"
+                                value={luckyWord}
+                                onChange={(e) => setLuckyWord(e.target.value)}
+                            />
                         </div>
-                    }
-                    <div className="real-time-list flex-1">
-                        <div className="mb-4"> 已成功参与列表</div>
-                        <ScrollArea className={"h-[60vh] rounded border p-4"}>
-                            <div ref={realtimeUserListRef}>
-                                {
-                                    participants.map((item, index) => {
-                                        return (
-                                            <div key={index} className="msg-item text-sm text-start p-1">
-                                                <span className="name font-bold"> {item.name} </span>
-                                                <Badge variant={'secondary'}
-                                                       className={"text-[0.75em] p-1 h-3"}> {item.uid} </Badge>
-                                            </div>
-                                        )
-                                    })
-                                }
-                            </div>
-                        </ScrollArea>
+                        <div className="flex gap-2">
+                            {isFetching ? (
+                                <Button onClick={stopHandle} variant="destructive">
+                                    停止获取
+                                </Button>
+                            ) : (
+                                <Button onClick={startHandle}>
+                                    开始获取
+                                </Button>
+                            )}
+                            <Button onClick={resetHandle} variant="secondary">
+                                清空参与者
+                            </Button>
+                            <Button onClick={openPageHandle} variant="secondary">
+                                打开B站
+                            </Button>
+                        </div>
                     </div>
-                    {
-                        isDrawing &&
-                        <div className="real-time-list flex-1">
-                            <div className="mb-4"> 抽奖结果</div>
-                            <div className="flex justify-center p-4">
-                                <Select onValueChange={(value) => {
-                                    console.log("选择抽取人数", value);
-                                    setDrawCount(parseInt(value));
-                                }
-                                }>
-                                    <SelectTrigger className="w-[180px]">
-                                        <SelectValue placeholder="选择抽取人数"></SelectValue>
-                                    </SelectTrigger>
-                                    <SelectContent>
-                                        {
-                                            participants.map((_, index) => (
-                                                <SelectItem key={index} value={index + 1 + ""}>
-                                                    {index + 1}
-                                                </SelectItem>
-                                            ))
-                                        }
-                                    </SelectContent>
-                                </Select>
-                                <Button className={"ml-4"} disabled={drawCount === 0 || participants.length === 0} onClick={() => {
-                                    if (drawCount > participants.length) {
-                                        toast({
-                                            title: '抽取人数过多',
-                                            description: '抽取人数不能超过参与人数',
-                                        });
-                                        return;
-                                    }
-                                    if (drawCount === null) {
-                                        toast({
-                                            title: '请选择抽取人数',
-                                            description: '请选择要抽取的人数',
-                                        });
-                                    }
-                                    const newLuckyUserList:Participant[] = [];
-                                    const newParticipants = [...participants];
-
-                                    for (let i = 0; i < drawCount; i++) {
-                                        const luckyIndex = Math.floor(Math.random() * newParticipants.length);
-                                        const lucky = newParticipants.splice(luckyIndex, 1)[0];
-                                        newLuckyUserList.push(lucky);
-                                    }
-
-                                    setLuckyUserList((prev) => [...prev, ...newLuckyUserList]);
-                                    setParticipants(newParticipants);
-                                    console.log("中奖用户列表", newLuckyUserList);
-                                    console.log("剩余参与者", newParticipants);
-                                }}> 抽取 </Button>
-                                <Button variant={'ghost'} onClick={() => {
-                                    setLuckyUserList([]);
-                                }}> 清空 </Button>
-                                <Button variant={'ghost'} onClick={() => {
-                                    navigator.clipboard.writeText(luckyUserList.map(
-                                        (item) => `${item.name}(${item.uid})`
-                                    ).join('\n'
-                                    )).then(() => {
-                                        toast({
-                                            title: '复制成功',
-                                            description: ` 已将中奖用户信息复制到剪贴板中 `,
-                                        })
-                                    })
-                                }}> 复制中奖信息 </Button>
-                            </div>
-                            <ScrollArea className={"h-[48.5vh] rounded border p-4"}>
-                                <div>
-                                    {
-                                        luckyUserList.map((item, index) => {
-                                            return (
-                                                <div key={index} className="msg-item text-sm text-start p-1">
-                                                    <span className="name font-bold"> {item.name} </span>
-                                                    <Badge variant={'secondary'}
-                                                           className={"text-[0.75em] p-1 h-3"}> {item.uid} </Badge>
-                                                </div>
-                                            )
-                                        })
-                                    }
+                </div>
+            </div>
+            <div className="flex gap-4">
+                <div className="flex-1">
+                    <div className="flex justify-between items-center mb-2">
+                        <h2 className="text-lg font-semibold">实时弹幕列表</h2>
+                        <Badge variant={isFetching ? "default" : "outline"}>
+                            {isFetching ? '获取中' : '未获取'}
+                        </Badge>
+                    </div>
+                    <ScrollArea className="h-96 border rounded-lg p-2">
+                        {msgList.map((msg, index) => (
+                            <div key={index} className="flex items-center gap-2 py-1">
+                                <div className="font-medium text-sm w-20 truncate">
+                                    {msg.name}
                                 </div>
-                            </ScrollArea>
-                        </div>
-                    }
+                                <div className="text-sm flex-1">
+                                    {msg.content}
+                                </div>
+                            </div>
+                        ))}
+                        <div ref={realtimeListRef} />
+                    </ScrollArea>
+                </div>
+                <div className="flex-1">
+                    <div className="flex justify-between items-center mb-2">
+                        <h2 className="text-lg font-semibold">参与抽奖的观众</h2>
+                        <Badge variant="secondary">
+                            {participants.length} 人
+                        </Badge>
+                    </div>
+                    <ScrollArea className="h-96 border rounded-lg p-2">
+                        {participants.map((participant, index) => (
+                            <div key={index} className="flex items-center gap-2 py-1">
+                                <div className="font-medium text-sm w-20 truncate">
+                                    {participant.name}
+                                </div>
+                                <div className="text-sm text-gray-500">
+                                    UID: {participant.uid}
+                                </div>
+                            </div>
+                        ))}
+                        <div ref={realtimeUserListRef} />
+                    </ScrollArea>
                 </div>
             </div>
-
-
-            <div className={"actions-container flex"}>
-                <div className={"flex flex-1 pr-8 items-center"}>
-                    <div className={"mr-4"}> 设置互动词 &nbsp;:</div>
-                    <Input className={"flex-1"} value={luckyWord} onChange={(e) => setLuckyWord(e.target.value)}/>
-                </div>
-                {
-                    !isFetching &&
-                    <Button className={""} onClick={() => startHandle()}> 开始获取
-                    </Button>
-                }
-
-                {
-                    isFetching && <Button className={""} onClick={() => stopHandle()}> 停止获取
-                    </Button>
-                }
-                {
-                    !isFetching && !isDrawing && participants.length > 0 &&
-                    <Button variant={'ghost'} onClick={() => {
-                        setIsDrawing(true);
-                    }}> 开始抽奖 </Button>
-                }
-                {
-                    isDrawing &&
-                    <Button variant={'ghost'} onClick={() => {
-                        setIsDrawing(false);
-                    }}> 结束抽奖 </Button>
-                }
-                <Button variant={'ghost'} onClick={() => {
-                    setMsgList([]);
-                    setParticipants([]);
-                    resetHandle();
-                }}> 清空所有列表 </Button>
-            </div>
-            <Toaster/>
+            <Toaster />
         </>
-    )
+    );
 }
 
-export default App
+export default App;

@@ -1,5 +1,5 @@
-import zlib from 'zlib';
 import {EventEmitter} from 'events';
+import zlib from 'zlib';
 
 class DanmuExtractor extends EventEmitter {
     async getDmMsg(data: Buffer) {

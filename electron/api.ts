@@ -236,17 +236,17 @@ export async function startWebSocket(shortId: string): Promise<void> {
     console.log('开始初始化WebSocket连接（前端输入ID：', shortId, '）');
 
     // 第一步：关闭旧连接+清理旧监听（核心修复：避免重复）
+    if (globalMsgHandler) {
+        console.log('清理旧弹幕消息监听');
+        danmuExtractor.off('MsgData', globalMsgHandler);
+        globalMsgHandler = null;
+    }
     if (globalWs) {
         if (globalWs.readyState !== WebSocket.CLOSED && globalWs.readyState !== WebSocket.CLOSING) {
             console.log('关闭旧WebSocket连接');
             globalWs.close();
         }
         globalWs = null;
-    }
-    if (globalMsgHandler) {
-        console.log('清理旧弹幕消息监听');
-        danmuExtractor.off('MsgData', globalMsgHandler);
-        globalMsgHandler = null;
     }
 
     try {
