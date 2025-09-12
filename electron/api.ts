@@ -60,6 +60,7 @@ export async function getRoomId(shortId: string): Promise<number> {
 
         if (data.code !== 0 || !data.data?.room_id) {
             throw new Error(`获取真实房间号失败，接口响应：${JSON.stringify(data)}`);
+
         }
         console.log("获取真实房间号：", data.data.room_id);
         return data.data.room_id;
