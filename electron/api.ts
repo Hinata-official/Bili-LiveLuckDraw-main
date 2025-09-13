@@ -4,7 +4,6 @@ import { Buffer } from 'buffer';
 import DanmuExtractor from './DanmuExtractor';
 import { getBuvid3, getCookies, getUid, sendMsgToRenderer } from "./main.ts";
 import fetchCookie from 'fetch-cookie';
-import type { Cookie } from 'electron'; // TypeScript 显式导入类型
 import { ipcMain } from "electron";
 import { signRequest } from "./signTool.ts";
 import { sendDanmuToKafka } from './danmakuProducer.ts';
@@ -79,7 +78,8 @@ export async function getDanmuInfo(roomId: number): Promise<DanmuInfoResponse['d
     try {
         const params = { id: roomId, web_location: 444.8, type: 0 };
         const args = await signRequest(params);
-        const cookies = getCookies().map((cookie: Cookie) => `${cookie.name}=${cookie.value}`).join('; ');
+        // 使用类型断言避免Cookie类型冲突
+        const cookies = getCookies().map((cookie: any) => `${cookie.name}=${cookie.value}`).join('; ');
 
         const response = await fetchWithCookies(
             `https://api.live.bilibili.com/xlive/web-room/v1/index/getDanmuInfo?${args}`,
@@ -298,11 +298,12 @@ export async function startWebSocket(shortId: string): Promise<void> {
                 // 2. 打印日志（TypeScript 模板字符串，类型安全）
                 console.log(`[房间 ${realRoomId}] ${userName}（UID: ${uid}）的弹幕：${danmuContent}`);
 
-                // 3. 发送到前端渲染
+                // 3. 直接发送到前端渲染的弹幕（在UI中显示）
                 sendMsgToRenderer('danmu_msg', {
                     name: userName,
                     uid: uid,
-                    content: danmuContent
+                    content: danmuContent,
+                    directFromWebSocket: true // 添加标记，区分直接来自WebSocket的消息
                 });
 
                 // 4. 抽奖关键词匹配

@@ -1,5 +1,6 @@
-import {app, BrowserWindow} from 'electron'
+import { app, BrowserWindow } from 'electron';
 import { initKafkaProducer } from './danmakuProducer.ts';
+import { initializeVtuberResponseConsumer } from './VtuberResponseConsumer.ts';
 // import {createRequire} from 'node:module'
 import {fileURLToPath} from 'node:url'
 import path from 'node:path'
@@ -10,6 +11,14 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url))
 import fetchCookie from 'fetch-cookie';
 
 const fetchWithCookies = fetchCookie(fetch);
+
+// 定义Cookie类型
+interface Cookie {
+    name: string;
+    value: string;
+    domain?: string;
+    path?: string;
+}
 
 let COOKIES: Cookie[] = [];
 let buvid3: string = '';
@@ -76,20 +85,28 @@ app.on('activate', () => {
     }
 })
 
-app.whenReady().then(() => {
-    app.whenReady().then(async () => {
-        // 先初始化 Kafka 生产者
-        try {
-            await initKafkaProducer();
-        } catch (error) {
-            console.error('[初始化失败] Kafka 生产者启动异常：', error);
-        }
-        // 再创建窗口（原有逻辑）
-        createWindow();
+app.whenReady().then(async () => {
+    // 先初始化 Kafka 生产者
+    try {
+        await initKafkaProducer();
+        console.log('[初始化成功] Kafka 生产者已启动');
+    } catch (error) {
+        console.error('[初始化失败] Kafka 生产者启动异常：', error);
+    }
 
-        app.on('activate', function () {
-            if (BrowserWindow.getAllWindows().length === 0) createWindow();
-        });
+    // 初始化 Vtuber 应答消费者
+    try {
+        await initializeVtuberResponseConsumer();
+        console.log('[初始化成功] Vtuber 应答消费者已启动');
+    } catch (error) {
+        console.error('[初始化失败] Vtuber 应答消费者启动异常：', error);
+    }
+
+    // 再创建窗口（原有逻辑）
+    createWindow();
+
+    app.on('activate', function () {
+        if (BrowserWindow.getAllWindows().length === 0) createWindow();
     });
 })
 
@@ -145,7 +162,6 @@ function createLoginWindowExternal(url: string) {
 // Ipc
 import {ipcMain} from 'electron'
 import {startWebSocket} from "./api.ts";
-import Cookie = Electron.Cookie;
 
 ipcMain.on('open-page', (_event, url) => {
     createLoginWindowExternal(url)
@@ -161,11 +177,7 @@ export const getCookies = () => {
 }
 
 // 一个给渲染进程发送消息的方法（使用 win1）
-export const sendMsgToRenderer = (channel: string, msg: {
-    name: string;
-    uid?: number;
-    content?: string;
-}) => {
+export const sendMsgToRenderer = (channel: string, msg: any) => {
     win1?.webContents.send(channel, msg);
 }
 

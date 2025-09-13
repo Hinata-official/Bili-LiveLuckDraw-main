@@ -20,11 +20,20 @@ interface DanMuItem {
     name: string;
     uid: number;
     content: string;
+    timestamp?: number; // 添加时间戳字段用于去重
 }
 
 interface Participant {
     name: string;
     uid: number;
+}
+
+interface VtuberResponse {
+    userId: number;
+    userName: string;
+    userAvatar?: string;
+    response: string;
+    timestamp: number;
 }
 
 function App() {
@@ -35,6 +44,7 @@ function App() {
 
     const realtimeListRef = useRef<HTMLDivElement>(null);
     const realtimeUserListRef = useRef<HTMLDivElement>(null);
+    const vtuberResponsesRef = useRef<HTMLDivElement>(null);
 
     const startHandle = () => {
         if (!isLogin) {
@@ -86,28 +96,91 @@ function App() {
         setIsLogin(true);
     };
 
-    const handleDanmuMsg = (_event: any, data: any) => {
-        console.log("获取到弹幕信息", data);
-        setIsFetching(true);
-        setMsgList((prev) => {
-            return [...prev, {
-                name: data.name,
-                uid: data.uid,
-                content: data.content,
-            }]
-        })
+    // 处理Vtuber应答消息
+    const handleVtuberResponse = (_event: any, data: VtuberResponse) => {
+        console.log("获取到Vtuber应答消息", data);
+        setVtuberResponses(prev => {
+            // 添加去重逻辑，避免相同的应答重复显示
+            const now = Date.now();
+            const isDuplicate = prev.some(
+                msg => msg.userId === data.userId && 
+                       msg.response === data.response && 
+                       now - msg.timestamp < 5000 // 5秒内相同的用户和响应内容视为重复
+            );
+            
+            if (isDuplicate) {
+                return prev;
+            }
+            
+            // 限制消息数量，避免无限增长
+            const newResponses = [...prev, data];
+            if (newResponses.length > 100) {
+                newResponses.shift(); // 移除最早的消息
+            }
+            return newResponses;
+        });
+        
         // 滚动到底部
         setTimeout(() => {
-            realtimeListRef.current?.scrollIntoView({
+            vtuberResponsesRef.current?.scrollIntoView({
                 block: 'end',
                 behavior: 'smooth',
             });
-        }, 500)
+        }, 500);
+    };
+
+    const handleDanmuMsg = (_event: any, data: any) => {
+        console.log("获取到弹幕信息", data);
+        // 不再每次收到弹幕都设置isFetching，只在start/stop时设置
+        
+        // 过滤逻辑：
+        // 1. 如果是直接来自WebSocket的消息(directFromWebSocket:true)，则直接添加
+        // 2. 如果是来自Flink的消息(fromFlink:true)，则跳过，避免重复显示
+        if (!data.fromFlink) {
+            setMsgList((prev) => {
+                // 添加去重逻辑，避免同一弹幕重复显示
+                // 检查是否在最近500ms内有相同用户发送的相同内容
+                const now = Date.now();
+                const isDuplicate = prev.some(
+                    msg => msg.uid === data.uid && 
+                           msg.content === data.content && 
+                           msg.timestamp && 
+                           now - msg.timestamp < 500
+                );
+                
+                if (isDuplicate) {
+                    return prev;
+                }
+                
+                return [...prev, {
+                    name: data.name,
+                    uid: data.uid,
+                    content: data.content,
+                    timestamp: now // 添加时间戳用于去重
+                }]
+            })
+            // 滚动到底部
+            setTimeout(() => {
+                realtimeListRef.current?.scrollIntoView({
+                    block: 'end',
+                    behavior: 'smooth',
+                });
+            }, 500)
+        }
     };
 
     const handleAddUser = (_event: any, data: any) => {
         console.log("获取到参与者信息", data);
         setParticipants((prev) => {
+            // 添加去重逻辑，避免同一用户重复显示
+            const isDuplicate = prev.some(
+                participant => participant.uid === data.uid
+            );
+            
+            if (isDuplicate) {
+                return prev;
+            }
+            
             return [...prev, {
                 name: data.name,
                 uid: data.uid,
@@ -126,12 +199,14 @@ function App() {
         window.ipcRenderer.on('user-info', handleUserInfo);
         window.ipcRenderer.on('danmu_msg', handleDanmuMsg);
         window.ipcRenderer.on('add_user', handleAddUser);
+        window.ipcRenderer.on('vtuber-response', handleVtuberResponse);
 
         // 修复：移除监听器时传入与注册时完全相同的函数引用
         return () => {
             window.ipcRenderer.removeListener('user-info', handleUserInfo);
             window.ipcRenderer.removeListener('danmu_msg', handleDanmuMsg);
             window.ipcRenderer.removeListener('add_user', handleAddUser);
+            window.ipcRenderer.removeListener('vtuber-response', handleVtuberResponse);
         }
     }, []);
 
@@ -140,6 +215,7 @@ function App() {
 
     const [msgList, setMsgList] = useState<DanMuItem[]>([]);
     const [participants, setParticipants] = useState<Participant[]>([]);
+    const [vtuberResponses, setVtuberResponses] = useState<VtuberResponse[]>([]);
 
     const [isFetching, setIsFetching] = useState<boolean>(false);
     const [luckyWord, setLuckyWord] = useState<string>('');
@@ -246,8 +322,8 @@ function App() {
                         </Badge>
                     </div>
                     <ScrollArea className="h-96 border rounded-lg p-2">
-                        {msgList.map((msg, index) => (
-                            <div key={index} className="flex items-center gap-2 py-1">
+                        {msgList.map((msg) => (
+                            <div key={msg.uid + '-' + Date.now()} className="flex items-center gap-2 py-1">
                                 <div className="font-medium text-sm w-20 truncate">
                                     {msg.name}
                                 </div>
@@ -267,8 +343,8 @@ function App() {
                         </Badge>
                     </div>
                     <ScrollArea className="h-96 border rounded-lg p-2">
-                        {participants.map((participant, index) => (
-                            <div key={index} className="flex items-center gap-2 py-1">
+                        {participants.map((participant) => (
+                            <div key={participant.uid} className="flex items-center gap-2 py-1">
                                 <div className="font-medium text-sm w-20 truncate">
                                     {participant.name}
                                 </div>
@@ -279,11 +355,40 @@ function App() {
                         ))}
                         <div ref={realtimeUserListRef} />
                     </ScrollArea>
+                    </div>
                 </div>
-            </div>
-            <Toaster />
-        </>
-    );
+                
+                {/* Vtuber应答消息区域 */}
+                <div className="mt-4">
+                    <div className="flex justify-between items-center mb-2">
+                        <h2 className="text-lg font-semibold">Vtuber 个性化应答</h2>
+                        <Badge variant="outline">
+                            {vtuberResponses.length} 条
+                        </Badge>
+                    </div>
+                    <ScrollArea className="h-48 border rounded-lg p-2 bg-gradient-to-br from-purple-50 to-blue-50">
+                        {vtuberResponses.map((response, index) => (
+                            <div key={index} className="py-2 border-b border-gray-100 last:border-0">
+                                <div className="flex items-center gap-2 mb-1">
+                                    <div className="font-medium text-sm w-20 truncate">
+                                        {response.userName}
+                                    </div>
+                                    <div className="text-xs text-gray-400">
+                                        {new Date(response.timestamp).toLocaleTimeString()}
+                                    </div>
+                                </div>
+                                <div className="text-sm text-gray-700 pl-2 border-l-2 border-purple-300">
+                                    {response.response}
+                                </div>
+                            </div>
+                        ))}
+                        <div ref={vtuberResponsesRef} />
+                    </ScrollArea>
+                </div>
+                
+                <Toaster />
+            </>
+        );
 }
 
 export default App;

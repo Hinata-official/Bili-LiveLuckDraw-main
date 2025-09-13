@@ -1,10 +1,11 @@
-import { Kafka } from 'kafkajs';
 import { app } from 'electron';
+import { Kafka } from 'kafkajs';
+// 修复Kafka重复导入问题：确认仅导入一次Kafka客户端
 
-// 1. 初始化 Kafka 客户端（替换为你的 Kafka 地址，本地默认 9092）
+// 1. 初始化 Kafka 客户端（宿主机访问使用localhost）
 const kafka = new Kafka({
     clientId: 'bili-danmu-producer', // 客户端标识（自定义）
-    brokers: ['192.168.88.100:9092'] // Kafka 集群地址（单机填一个即可）
+    brokers: ['localhost:9092'] // 宿主机访问Kafka服务
 });
 
 // 2. 创建生产者实例
