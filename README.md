@@ -1,7 +1,7 @@
 <img src="/public/icon.png" alt="logo" width="200"/>
 
 # Bili-LiveLuckDraw
-
+原作者
 [![GitHub license](https://img.shields.io/github/license/grtsinry43/Bili-LiveLuckDraw)](https://opensource.org/license/MIT)
 [![GitHub release](https://img.shields.io/github/v/release/grtsinry43/Bili-LiveLuckDraw)](https://github.com/grtsinry43/Bili-LiveLuckDraw/releases)
 [![Last commit](https://img.shields.io/github/last-commit/grtsinry43/Bili-LiveLuckDraw)](https://github.com/grtsinry43/Bili-LiveLuckDraw/commits/main)
@@ -105,7 +105,7 @@ pnpm install
 
 ## 使用方法
 
-在 Releases 中下载最新版本的安装包，安装并运行即可。
+直接下载source code即可
 
 使用时在右上角登录B站账号，然后输入直播间号，点击开始获取即可。当结束获取后，点击开始抽奖即可。
 
